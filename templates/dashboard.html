@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Финансовая аналитика</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body>
+
+<div class="container mt-4">
+
+    <h1>📊 Финансовая аналитика</h1>
+
+    <a href="/" class="btn btn-primary mb-4">
+        ← На главную
+    </a>
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header">
+            📈 Доходы и расходы по месяцам
+        </div>
+
+        <div class="card-body">
+
+            <div style="height:350px;">
+                <canvas id="incomeExpenseChart"></canvas>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card shadow-sm">
+
+        <div class="card-header">
+            🥧 Структура расходов
+        </div>
+
+        <div class="card-body">
+
+            <div style="height:300px;">
+                <canvas id="expensePieChart"></canvas>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const months = {{ months|tojson }};
+const incomes = {{ incomes|tojson }};
+const expenses = {{ expenses|tojson }};
+
+new Chart(
+    document.getElementById('incomeExpenseChart'),
+    {
+        type: 'line',
+
+        data: {
+            labels: months,
+
+            datasets: [
+                {
+                    label: 'Доходы',
+                    data: incomes,
+                    borderWidth: 3,
+                    tension: 0.3
+                },
+                {
+                    label: 'Расходы',
+                    data: expenses,
+                    borderWidth: 3,
+                    tension: 0.3
+                }
+            ]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    }
+);
+
+const categories = {{ category_labels|tojson }};
+const categoryValues = {{ category_values|tojson }};
+
+new Chart(
+    document.getElementById('expensePieChart'),
+    {
+        type: 'doughnut',
+
+        data: {
+            labels: categories,
+
+            datasets: [{
+                data: categoryValues
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    }
+);
+
+</script>
+
+</body>
+</html>
