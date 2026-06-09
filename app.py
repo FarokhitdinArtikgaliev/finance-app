@@ -3,6 +3,52 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import date
 import sqlite3
+conn = sqlite3.connect("finance.db")
+
+conn.execute("""
+CREATE TABLE IF NOT EXISTS income (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    income_date TEXT,
+    amount REAL,
+    category TEXT,
+    comment TEXT
+)
+""")
+
+conn.execute("""
+CREATE TABLE IF NOT EXISTS expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    expense_date TEXT,
+    amount REAL,
+    category TEXT,
+    comment TEXT
+)
+""")
+
+conn.execute("""
+CREATE TABLE IF NOT EXISTS mortgage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    total_amount REAL,
+    paid_amount REAL,
+    remaining_amount REAL,
+    current_payment REAL,
+    finish_date TEXT
+)
+""")
+
+conn.execute("""
+CREATE TABLE IF NOT EXISTS deposit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    balance REAL,
+    interest_rate REAL,
+    start_date TEXT,
+    end_date TEXT,
+    payment_day INTEGER
+)
+""")
+
+conn.commit()
+conn.close()
 
 app = FastAPI()
 
