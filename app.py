@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import date
+from fastapi.staticfiles import StaticFiles
 import sqlite3
 conn = sqlite3.connect("finance.db")
 
@@ -51,6 +52,11 @@ conn.commit()
 conn.close()
 
 app = FastAPI()
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
 
 templates = Jinja2Templates(directory="templates")
 

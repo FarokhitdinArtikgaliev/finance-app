@@ -1,11 +1,11 @@
 @echo off
 
-cd /d C:\Users\Администратор\finance_app
+python backups\backup_db.py
 
-python backup_db.py
+git add backups
 
-git add .
-
-git commit -m "Auto backup"
-
-git push
+git diff --cached --quiet
+if errorlevel 1 (
+    git commit -m "Auto backup"
+    git push
+)
