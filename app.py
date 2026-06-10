@@ -720,3 +720,39 @@ def dashboard(request: Request):
             "category_values": category_values
         }
     )
+from pydantic import BaseModel
+
+class ExpenseAPI(BaseModel):
+    amount: float
+    category: str = "AVO"
+    comment: str = ""
+
+@app.post("/api/expense")
+def api_expense(data: ExpenseAPI):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO expenses
+        (expense_date, amount, category, comment)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (
+            str(date.today()),
+            data.amount,
+            data.category,
+            data.comment
+        )
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "status": "ok",
+        "amount": data.amount
+    }
