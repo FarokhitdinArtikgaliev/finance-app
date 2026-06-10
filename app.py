@@ -1,55 +1,23 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from datetime import date
 from fastapi.staticfiles import StaticFiles
-import sqlite3
-conn = sqlite3.connect("finance.db")
+from datetime import date
 
-conn.execute("""
-CREATE TABLE IF NOT EXISTS income (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    income_date TEXT,
-    amount REAL,
-    category TEXT,
-    comment TEXT
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://finance_user:unm4SB9TiYJzejHX5Ml1DENtdKZ2mJO5@dpg-d8kdekojs32c73em3740-a.oregon-postgres.render.com/finance_o60s"
 )
-""")
 
-conn.execute("""
-CREATE TABLE IF NOT EXISTS expenses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    expense_date TEXT,
-    amount REAL,
-    category TEXT,
-    comment TEXT
-)
-""")
-
-conn.execute("""
-CREATE TABLE IF NOT EXISTS mortgage (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    total_amount REAL,
-    paid_amount REAL,
-    remaining_amount REAL,
-    current_payment REAL,
-    finish_date TEXT
-)
-""")
-
-conn.execute("""
-CREATE TABLE IF NOT EXISTS deposit (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    balance REAL,
-    interest_rate REAL,
-    start_date TEXT,
-    end_date TEXT,
-    payment_day INTEGER
-)
-""")
-
-conn.commit()
-conn.close()
+def get_connection():
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor,
+        sslmode="require"
+    )
 
 app = FastAPI()
 app.mount(
@@ -64,44 +32,52 @@ templates = Jinja2Templates(directory="templates")
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    total_income = conn.execute(
-        "SELECT IFNULL(SUM(amount), 0) AS total FROM income"
-    ).fetchone()["total"]
+    cur.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM income"
+    )
+    total_income = cur.fetchone()["total"]
 
-    total_expense = conn.execute(
-        "SELECT IFNULL(SUM(amount), 0) AS total FROM expenses"
-    ).fetchone()["total"]
+    cur.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses"
+    )
+    total_expense = cur.fetchone()["total"]
 
-    mortgage_paid = conn.execute("""
-        SELECT IFNULL(SUM(amount),0) AS total
+    cur.execute("""
+        SELECT COALESCE(SUM(amount),0) AS total
         FROM expenses
         WHERE category='Ипотека'
-    """).fetchone()["total"]
+    """)
+    mortgage_paid = cur.fetchone()["total"]
 
     balance = total_income - total_expense
 
-    recent_income = conn.execute("""
+    cur.execute("""
         SELECT
-            income_date as operation_date,
+            income_date AS operation_date,
             category,
             amount,
-            'income' as operation_type
+            'income' AS operation_type
         FROM income
-    """).fetchall()
+    """)
+    recent_income = cur.fetchall()
 
-    recent_expenses = conn.execute("""
+    cur.execute("""
         SELECT
-            expense_date as operation_date,
+            expense_date AS operation_date,
             category,
             amount,
-            'expense' as operation_type
+            'expense' AS operation_type
         FROM expenses
-    """).fetchall()
+    """)
+    recent_expenses = cur.fetchall()
 
-    recent_operations = list(recent_income) + list(recent_expenses)
+    recent_operations = (
+        list(recent_income) +
+        list(recent_expenses)
+    )
 
     recent_operations.sort(
         key=lambda x: x["operation_date"],
@@ -110,6 +86,7 @@ def home(request: Request):
 
     recent_operations = recent_operations[:10]
 
+    cur.close()
     conn.close()
 
     return templates.TemplateResponse(
@@ -143,6 +120,27 @@ def save_income(
     comment: str = Form("")
 ):
 
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO income
+        (income_date, amount, category, comment)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (income_date, amount, category, comment)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return RedirectResponse(
+        url="/incomes",
+        status_code=303
+    )
+
     conn = sqlite3.connect("finance.db")
 
     conn.execute(
@@ -166,15 +164,18 @@ def save_income(
 @app.get("/incomes", response_class=HTMLResponse)
 def incomes(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    incomes = conn.execute("""
+    cur.execute("""
         SELECT *
         FROM income
         ORDER BY income_date DESC, id DESC
-    """).fetchall()
+    """)
 
+    incomes = cur.fetchall()
+
+    cur.close()
     conn.close()
 
     return templates.TemplateResponse(
@@ -184,7 +185,6 @@ def incomes(request: Request):
             "incomes": incomes
         }
     )
-
 
 @app.get("/income/delete/{income_id}")
 def delete_income(income_id: int):
@@ -224,6 +224,28 @@ def save_expense(
     category: str = Form(...),
     comment: str = Form("")
 ):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO expenses
+        (expense_date, amount, category, comment)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (expense_date, amount, category, comment)
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return RedirectResponse(
+        url="/expenses",
+        status_code=303
+    )
 
     conn = sqlite3.connect("finance.db")
 
@@ -265,15 +287,18 @@ def save_expense(
 @app.get("/expenses", response_class=HTMLResponse)
 def expenses(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    expenses = conn.execute("""
+    cur.execute("""
         SELECT *
         FROM expenses
         ORDER BY expense_date DESC, id DESC
-    """).fetchall()
+    """)
 
+    expenses = cur.fetchall()
+
+    cur.close()
     conn.close()
 
     return templates.TemplateResponse(
