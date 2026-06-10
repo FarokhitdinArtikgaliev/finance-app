@@ -141,16 +141,17 @@ def save_income(
         status_code=303
     )
 
-    conn = sqlite3.connect("finance.db")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    conn.execute(
-        """
-        INSERT INTO income
-        (income_date, amount, category, comment)
-        VALUES (?, ?, ?, ?)
-        """,
-        (income_date, amount, category, comment)
-    )
+    cur.execute(
+    """
+    INSERT INTO income
+    (income_date, amount, category, comment)
+    VALUES (%s, %s, %s, %s)
+    """,
+    (income_date, amount, category, comment)
+)
 
     conn.commit()
     conn.close()
@@ -189,12 +190,13 @@ def incomes(request: Request):
 @app.get("/income/delete/{income_id}")
 def delete_income(income_id: int):
 
-    conn = sqlite3.connect("finance.db")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    conn.execute(
-        "DELETE FROM income WHERE id = ?",
-        (income_id,)
-    )
+    cur.execute(
+    "DELETE FROM income WHERE id = %s",
+    (income_id,)
+)
 
     conn.commit()
     conn.close()
@@ -247,16 +249,17 @@ def save_expense(
         status_code=303
     )
 
-    conn = sqlite3.connect("finance.db")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    conn.execute(
-        """
-        INSERT INTO expenses
-        (expense_date, amount, category, comment)
-        VALUES (?, ?, ?, ?)
-        """,
-        (expense_date, amount, category, comment)
-    )
+    cur.execute(
+    """
+    INSERT INTO income
+    (income_date, amount, category, comment)
+    VALUES (%s, %s, %s, %s)
+    """,
+    (income_date, amount, category, comment)
+)
 
     conn.commit()
     conn.close()
@@ -269,7 +272,7 @@ def save_expense(
     # Пополнение вклада
     if category == "Вклад":
 
-        conn.execute(
+        cur.execute(
             """
             UPDATE deposit
             SET balance = balance + ?
@@ -313,12 +316,13 @@ def expenses(request: Request):
 @app.get("/expense/delete/{expense_id}")
 def delete_expense(expense_id: int):
 
-    conn = sqlite3.connect("finance.db")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    conn.execute(
-        "DELETE FROM expenses WHERE id = ?",
-        (expense_id,)
-    )
+    cur.execute(
+    "DELETE FROM expenses WHERE id = %s",
+    (expense_id,)
+)
 
     conn.commit()
     conn.close()
@@ -330,14 +334,17 @@ def delete_expense(expense_id: int):
 @app.get("/income/edit/{income_id}", response_class=HTMLResponse)
 def edit_income_form(income_id: int, request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    income = conn.execute(
-        "SELECT * FROM income WHERE id = ?",
+    cur.execute(
+        "SELECT * FROM income WHERE id = %s",
         (income_id,)
-    ).fetchone()
+    )
 
+    income = cur.fetchone()
+
+    cur.close()
     conn.close()
 
     return templates.TemplateResponse(
@@ -356,16 +363,17 @@ def update_income(
     comment: str = Form("")
 ):
 
-    conn = sqlite3.connect("finance.db")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    conn.execute(
+    cur.execute(
         """
         UPDATE income
-        SET income_date = ?,
-            amount = ?,
-            category = ?,
-            comment = ?
-        WHERE id = ?
+        SET income_date = %s,
+            amount = %s,
+            category = %s,
+            comment = %s
+        WHERE id = %s
         """,
         (income_date, amount, category, comment, income_id)
     )
@@ -380,11 +388,11 @@ def update_income(
 @app.get("/expense/edit/{expense_id}", response_class=HTMLResponse)
 def edit_expense_form(expense_id: int, request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    expense = conn.execute(
-        "SELECT * FROM expenses WHERE id = ?",
+    expense = cur.execute(
+        "SELECT * FROM expenses WHERE id = %s",
         (expense_id,)
     ).fetchone()
 
@@ -408,16 +416,17 @@ def update_expense(
     comment: str = Form("")
 ):
 
-    conn = sqlite3.connect("finance.db")
+    conn = get_connection()
+    cur = conn.cursor()
 
-    conn.execute(
+    cur.execute(
         """
         UPDATE expenses
-        SET expense_date = ?,
-            amount = ?,
-            category = ?,
-            comment = ?
-        WHERE id = ?
+        SET expense_date = %s,
+            amount = %s,
+            category = %s,
+            comment = %s
+        WHERE id = %s
         """,
         (expense_date, amount, category, comment, expense_id)
     )
@@ -432,18 +441,20 @@ def update_expense(
 @app.get("/mortgage", response_class=HTMLResponse)
 def mortgage_page(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    mortgage = conn.execute(
+    cur.execute(
         "SELECT * FROM mortgage LIMIT 1"
-    ).fetchone()
+    )
+    mortgage = cur.fetchone()
 
-    mortgage_expenses = conn.execute("""
-        SELECT IFNULL(SUM(amount),0) AS total
+    cur.execute("""
+        SELECT COALESCE(SUM(amount),0) AS total
         FROM expenses
         WHERE category='Ипотека'
-    """).fetchone()["total"]
+    """)
+    mortgage_expenses = cur.fetchone()["total"]
 
     total_amount = mortgage["total_amount"]
 
@@ -473,10 +484,10 @@ def mortgage_page(request: Request):
 @app.get("/reports", response_class=HTMLResponse)
 def reports(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    expenses = conn.execute("""
+    expenses = cur.execute("""
         SELECT
             category,
             SUM(amount) total
@@ -497,10 +508,10 @@ def reports(request: Request):
 @app.get("/monthly-report", response_class=HTMLResponse)
 def monthly_report(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    incomes = conn.execute("""
+    incomes = cur.execute("""
         SELECT
             substr(income_date,1,7) month,
             SUM(amount) total
@@ -509,7 +520,7 @@ def monthly_report(request: Request):
         ORDER BY month
     """).fetchall()
 
-    expenses = conn.execute("""
+    expenses = cur.execute("""
         SELECT
             substr(expense_date,1,7) month,
             SUM(amount) total
@@ -549,27 +560,31 @@ def monthly_report(request: Request):
 @app.get("/deposit", response_class=HTMLResponse)
 def deposit_page(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    deposit = conn.execute(
+    cur.execute(
         "SELECT * FROM deposit LIMIT 1"
-    ).fetchone()
+    )
+    deposit = cur.fetchone()
 
-    total_topups = conn.execute("""
-        SELECT IFNULL(SUM(amount),0) AS total
+    cur.execute("""
+        SELECT COALESCE(SUM(amount),0) AS total
         FROM expenses
         WHERE category='Вклад'
-    """).fetchone()["total"]
-    topups = conn.execute("""
-    SELECT
-        expense_date,
-        amount,
-        comment
-    FROM expenses
-    WHERE category='Вклад'
-    ORDER BY expense_date DESC, id DESC
-""").fetchall()
+    """)
+    total_topups = cur.fetchone()["total"]
+
+    cur.execute("""
+        SELECT
+            expense_date,
+            amount,
+            comment
+        FROM expenses
+        WHERE category='Вклад'
+        ORDER BY expense_date DESC, id DESC
+    """)
+    topups = cur.fetchall()
 
     start_balance = deposit["balance"]
 
@@ -636,10 +651,10 @@ def deposit_page(request: Request):
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
 
-    conn = sqlite3.connect("finance.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_connection()
+    cur = conn.cursor()
 
-    income_data = conn.execute("""
+    income_data = cur.execute("""
         SELECT
             substr(income_date,1,7) month,
             SUM(amount) total
@@ -648,7 +663,7 @@ def dashboard(request: Request):
         ORDER BY month
     """).fetchall()
 
-    expense_data = conn.execute("""
+    expense_data = cur.execute("""
         SELECT
             substr(expense_date,1,7) month,
             SUM(amount) total
@@ -657,7 +672,7 @@ def dashboard(request: Request):
         ORDER BY month
     """).fetchall()
 
-    expense_categories = conn.execute("""
+    expense_categories = cur.execute("""
         SELECT
             category,
             SUM(amount) total
