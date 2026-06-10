@@ -391,11 +391,14 @@ def edit_expense_form(expense_id: int, request: Request):
     conn = get_connection()
     cur = conn.cursor()
 
-    expense = cur.execute(
+    cur.execute(
         "SELECT * FROM expenses WHERE id = %s",
         (expense_id,)
-    ).fetchone()
+    )
 
+    expense = cur.fetchone()
+
+    cur.close()
     conn.close()
 
     return templates.TemplateResponse(
