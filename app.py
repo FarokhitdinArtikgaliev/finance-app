@@ -571,6 +571,7 @@ def deposit_page(request: Request):
     )
     deposit = cur.fetchone()
 
+    # Пополнения вклада
     cur.execute("""
         SELECT COALESCE(SUM(amount),0) AS total
         FROM expenses
@@ -578,6 +579,15 @@ def deposit_page(request: Request):
     """)
     total_topups = cur.fetchone()["total"]
 
+    # Снятия со вклада
+    cur.execute("""
+        SELECT COALESCE(SUM(amount),0) AS total
+        FROM income
+        WHERE category='Вклад'
+    """)
+    total_withdrawals = cur.fetchone()["total"]
+
+    # История пополнений
     cur.execute("""
         SELECT
             expense_date,
@@ -587,16 +597,65 @@ def deposit_page(request: Request):
         WHERE category='Вклад'
         ORDER BY expense_date DESC, id DESC
     """)
-    topups = cur.fetchall()
+    topups_raw = cur.fetchall()
+
+    # История снятий
+    cur.execute("""
+        SELECT
+            income_date,
+            amount,
+            comment
+        FROM income
+        WHERE category='Вклад'
+        ORDER BY income_date DESC, id DESC
+    """)
+    withdrawals_raw = cur.fetchall()
+
+    # Объединяем историю
+    topups = [
+        {
+            "date": row["expense_date"],
+            "amount": row["amount"],
+            "comment": row["comment"],
+            "type": "Пополнение"
+        }
+        for row in topups_raw
+    ]
+
+    withdrawals = [
+        {
+            "date": row["income_date"],
+            "amount": row["amount"],
+            "comment": row["comment"],
+            "type": "Снятие"
+        }
+        for row in withdrawals_raw
+    ]
+
+    operations = topups + withdrawals
+
+    operations.sort(
+        key=lambda x: x["date"],
+        reverse=True
+    )
 
     start_balance = deposit["balance"]
 
-    current_balance = start_balance + total_topups
+    current_balance = (
+        start_balance
+        + total_topups
+        - total_withdrawals
+    )
 
     rate = deposit["interest_rate"]
 
-    monthly_income = current_balance * rate / 100 / 12
-    yearly_income = current_balance * rate / 100
+    monthly_income = (
+        current_balance * rate / 100 / 12
+    )
+
+    yearly_income = (
+        current_balance * rate / 100
+    )
 
     today = date.today()
 
@@ -631,7 +690,9 @@ def deposit_page(request: Request):
     except:
         next_payment = today
 
-    days_left = (next_payment - today).days
+    days_left = (
+        next_payment - today
+    ).days
 
     conn.close()
 
@@ -640,7 +701,7 @@ def deposit_page(request: Request):
         name="deposit.html",
         context={
             "balance": current_balance,
-            "topups": topups,
+            "operations": operations,
             "rate": rate,
             "monthly_income": monthly_income,
             "yearly_income": yearly_income,
@@ -648,7 +709,8 @@ def deposit_page(request: Request):
             "end_date": deposit["end_date"],
             "payment_day": deposit["payment_day"],
             "days_left": days_left,
-            "total_topups": total_topups
+            "total_topups": total_topups,
+            "total_withdrawals": total_withdrawals
         }
     )
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -737,6 +799,40 @@ def api_expense(data: ExpenseAPI):
         """
         INSERT INTO expenses
         (expense_date, amount, category, comment)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (
+            str(date.today()),
+            data.amount,
+            data.category,
+            data.comment
+        )
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    return {
+        "status": "ok",
+        "amount": data.amount
+    }
+class IncomeAPI(BaseModel):
+    amount: float
+    category: str = "AVO"
+    comment: str = ""
+
+@app.post("/api/income")
+def api_income(data: IncomeAPI):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO income
+        (income_date, amount, category, comment)
         VALUES (%s, %s, %s, %s)
         """,
         (

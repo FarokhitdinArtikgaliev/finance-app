@@ -131,8 +131,12 @@
     </div>
 <div class="card mt-4">
 
+    <div class="card mt-4">
+
+    <div class="card mt-4">
+
     <div class="card-header">
-        История пополнений вклада
+        История операций по вкладу
     </div>
 
     <div class="card-body">
@@ -142,6 +146,7 @@
             <thead>
                 <tr>
                     <th>Дата</th>
+                    <th>Тип</th>
                     <th>Сумма</th>
                     <th>Комментарий</th>
                 </tr>
@@ -149,14 +154,30 @@
 
             <tbody>
 
-            {% for item in topups %}
+            {% for item in operations %}
 
             <tr>
 
-                <td>{{ item.expense_date }}</td>
+                <td>{{ item.date }}</td>
 
-                <td class="text-success fw-bold">
-                    +{{ "{:,.0f}".format(item.amount) }}
+                <td>
+                    {% if item.type == "Пополнение" %}
+                        <span class="badge bg-success">Пополнение</span>
+                    {% else %}
+                        <span class="badge bg-danger">Снятие</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if item.type == "Пополнение" %}
+                        <span class="text-success fw-bold">
+                            +{{ "{:,.0f}".format(item.amount) }}
+                        </span>
+                    {% else %}
+                        <span class="text-danger fw-bold">
+                            -{{ "{:,.0f}".format(item.amount) }}
+                        </span>
+                    {% endif %}
                 </td>
 
                 <td>{{ item.comment }}</td>
@@ -172,7 +193,3 @@
     </div>
 
 </div>
-</div>
-
-</body>
-</html>
